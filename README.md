@@ -1,47 +1,69 @@
 # HarnessLab
 
-HarnessLab is an open-source learning and simulation platform for AI Harness Engineering and LLM inference systems.
+HarnessLab is an open-source platform for learning and simulating how real AI systems work internally.
 
-The project is built around a simple idea:
+It is not a chatbot framework. It treats agent behavior and inference behavior as separate but connected systems:
 
-> Agent = Model + Harness
+- `Agent = Model + Harness`
+- `Harness = control plane`
+- `LLM = token generation system`
 
-Instead of treating the model as the whole agent, HarnessLab teaches the layers around it: the loop, tools, guardrails, memory, observability, loop detection, hooks, evaluation, and now the inference control plane itself.
+The project is designed to help engineers understand both sides:
+
+- agent control planes: tools, policies, memory, tracing, approvals, evals
+- inference systems: prefill, decode, KV cache, scheduling, metrics, speculative decoding, replay
+
+## What HarnessLab Is For
+
+HarnessLab exists to make AI systems legible.
+
+Instead of hiding everything behind a single API call, it exposes the layers that matter in production:
+
+- how an agent loop makes decisions
+- how policies block or gate unsafe actions
+- how memory and replay support debugging
+- how inference latency and cost are shaped by prefill vs decode
+- how cache pressure, batching, and speculative decode affect throughput
+
+## Core Principles
+
+1. `Agent = Model + Harness`
+2. `Harness = control plane for policies, memory, tracing, evals, approvals, and cost`
+3. `LLM inference = autoregressive token generation, not just a request/response wrapper`
 
 ## Stack
 
 - Runtime: Bun
 - Backend: Hono
 - Language: TypeScript with strict mode
-- Frontend: TanStack Start shell in `apps/web`
+- Architecture: modular workspace packages
+- UI: optional TanStack Start shell in `apps/web`
 
-## What It Includes
+## Main Capabilities
 
-- A production-style agent loop: `observe -> plan -> act -> verify -> repeat`
-- Step limits, token budgets, and explicit termination conditions
-- JSON-schema tool registry with safe execution wrappers
-- Guardrails, structured approval gates, and approval records
-- Hybrid memory with event memory, keyword or vector semantic memory, and an optional knowledge graph interface
-- Full tracing for steps, tool calls, failures, and completion
-- Loop detection for repeated tool calls and no-progress runs
-- Assertion-based evaluation for repeatable regression testing
-- Lifecycle hooks around tool execution and completion
-- Eight runnable learning modules that intentionally fail until the harness is improved
-- Optional real LLM and embedding adapters for OpenAI-compatible providers
-- Simulated inference internals: prefill, decode, KV cache, batching, speculative decoding, replay, and request-level metrics
+- Production-style agent loop: `observe -> plan -> act -> verify -> repeat`
+- JSON-schema tool registry and safe tool execution
+- Guardrails with `allow`, `deny`, and `require_approval`
+- Hybrid memory with event logs and semantic recall
+- Full tracing for runs, tool calls, policy decisions, failures, and completion
+- Regression-style evals for agent behavior
+- Simulated inference engine with:
+  - prefill vs decode separation
+  - async token streaming
+  - stop-token and max-token termination
+  - TTFT / TPOT / throughput / cost tracking
+  - KV-cache growth and eviction
+  - request batching and scheduling
+  - speculative decoding simulation
+  - replayable token/decision traces
 
-## Folder Structure
+## Repository Layout
 
 ```text
 .
 ├── apps
 │   ├── api
-│   │   └── src/index.ts
 │   └── web
-│       ├── package.json
-│       ├── src/router.tsx
-│       ├── src/routes/__root.tsx
-│       └── src/routes/index.tsx
 ├── modules
 │   ├── 01_basic_agent
 │   ├── 02_loop_fix
@@ -64,6 +86,67 @@ Instead of treating the model as the whole agent, HarnessLab teaches the layers 
 └── tests
 ```
 
+## Package Guide
+
+### `@harnesslab/core`
+
+Agent runtime and harness primitives.
+
+Important areas:
+
+- `packages/core/src/agent/runtime.ts`
+- `packages/core/src/policy/policy.ts`
+- `packages/core/src/tooling/tool-registry.ts`
+- `packages/core/src/memory/hybrid-memory.ts`
+- `packages/core/src/observability/tracer.ts`
+- `packages/core/src/eval/evaluator.ts`
+
+### `@harnesslab/inference`
+
+Inference simulation primitives.
+
+- `prefill.ts`: prompt ingestion and cache population
+- `decode.ts`: token-by-token generation
+- `tokenLoop.ts`: async streaming inference loop
+- `speculative.ts`: draft-token verification simulation
+
+### `@harnesslab/metrics`
+
+Request-level inference metrics.
+
+- TTFT
+- TPOT
+- total tokens
+- throughput
+- estimated request cost
+
+### `@harnesslab/memory`
+
+Low-level inference memory simulation.
+
+- `kvCache.ts`: token growth, usage accounting, eviction
+
+### `@harnesslab/scheduler`
+
+Batch scheduling simulation.
+
+- enqueue requests
+- wait for batching window
+- dispatch batches
+
+### `@harnesslab/replay`
+
+Replayable execution traces.
+
+- tokens
+- decisions
+- events
+- tool calls
+
+### `@harnesslab/evals`
+
+Scenario-style pass/fail test engine for control-plane and inference behaviors.
+
 ## Quick Start
 
 ```bash
@@ -72,7 +155,7 @@ bun run typecheck
 bun test
 ```
 
-Run the core commands:
+Core commands:
 
 ```bash
 bun run module 01_basic_agent
@@ -82,9 +165,7 @@ bun run inference
 bun run api
 ```
 
-The API starts on `http://localhost:3001`.
-
-If you want the optional UI shell:
+Optional UI shell:
 
 ```bash
 bun run web
@@ -92,77 +173,137 @@ bun run web
 
 ## Learning Modules
 
-Each module is intentionally small and focused:
+The `modules/` directory is the educational path through harness engineering.
 
-1. `01_basic_agent`: a naive agent that reflects forever
-2. `02_loop_fix`: repeated tool calls trigger loop escalation
-3. `03_tools`: bad tool input fails schema validation
-4. `04_guardrails`: unsafe actions are denied by policy
-5. `05_memory`: event logs exist, but semantic recall is broken
-6. `06_observability`: the agent works but leaves no trace
-7. `07_eval`: regressions are caught by the evaluation suite
-8. `08_full_agent`: the reference harness with all layers enabled
+1. `01_basic_agent`: naive agent with no real harness discipline
+2. `02_loop_fix`: repeated-tool loop detection
+3. `03_tools`: schema-safe tool calling
+4. `04_guardrails`: blocked and approval-gated actions
+5. `05_memory`: semantic recall vs missing recall
+6. `06_observability`: why traces matter
+7. `07_eval`: regression and assertion-based evaluation
+8. `08_full_agent`: combined reference harness
 
-Most modules expose a single constant flag in their `index.ts` file. Flip the flag, rerun the module, and compare the before/after trace.
+Most lessons expose a small constant in the module file so the failure mode can be flipped into the fixed mode.
 
-## Core Runtime
+## Agent Runtime
 
-The runtime lives in [packages/core/src/agent/runtime.ts](packages/core/src/agent/runtime.ts) and coordinates:
+The agent runtime coordinates:
 
-- `AgentModel`: produces the next plan from the current observation
-- `ToolRegistry`: validates and executes tool calls
-- `ToolPolicy`: blocks, allows, or gates sensitive actions
-- `HybridMemory`: stores events and enables semantic recall
-- `Tracer`: records everything needed for debugging and evaluation
-- `Verifier`: decides whether the loop should continue or terminate
-- `LoopDetector`: escalates repeated or stagnant runs
+- `AgentModel`: proposes the next step
+- `ToolRegistry`: validates and executes tools
+- `ToolPolicy`: decides whether actions are allowed
+- `HybridMemory`: stores events and semantic notes
+- `Tracer`: records the run
+- `Verifier`: checks whether to continue or terminate
+- `LoopDetector`: escalates stalled or repetitive runs
 
-Recent extension points:
+Relevant files:
 
-- `JsonPlanAgentModel`: provider-backed planner that asks an LLM for the next harness action
-- `OpenAICompatibleClient`: chat-completions adapter for real model calls
-- `OpenAICompatibleEmbeddingModel`: embedding adapter for vector memory
-- `VectorSemanticMemory`: cosine-similarity search over embedded notes and events
-- `InMemoryApprovalGate`: records approval requests and supports pending, approved, or denied outcomes
-- richer `EvaluationEngine` assertions for status, output, tool use, steps, token usage, and trace volume
+- [packages/core/src/agent/runtime.ts](packages/core/src/agent/runtime.ts)
+- [packages/core/src/agent/llm-model.ts](packages/core/src/agent/llm-model.ts)
+- [packages/core/src/modules/demo-kit.ts](packages/core/src/modules/demo-kit.ts)
 
-## Inference Control Plane
+## Inference Engine
 
-HarnessLab now models the inference side of AI systems as first-class packages:
+The inference side intentionally models a real serving loop:
 
-- `@harnesslab/inference`: prefill, decode, token loop, and speculative decoding
-- `@harnesslab/metrics`: TTFT, TPOT, throughput, token counts, and request cost
-- `@harnesslab/memory`: KV-cache growth and eviction simulation
-- `@harnesslab/scheduler`: queued batching and batch dispatch
-- `@harnesslab/replay`: token, tool, and decision replay traces
-- `@harnesslab/evals`: scenario-style pass/fail test engine
+```ts
+const { event: prefillEvent, state } = await prefill(request)
 
-Key files:
+while (!state.done) {
+  const result = await decode(state)
+  if (result.event) yield result.event
+}
+```
 
-- `packages/inference/src/prefill.ts`
-- `packages/inference/src/decode.ts`
-- `packages/inference/src/tokenLoop.ts`
-- `packages/inference/src/speculative.ts`
-- `packages/metrics/src/request-metrics.ts`
-- `packages/memory/src/kvCache.ts`
-- `packages/scheduler/src/index.ts`
+Behavior modeled:
 
-The inference simulator is intentionally not a chatbot wrapper. It models:
+- prefill as the slower, context-loading phase
+- decode as repeated next-token emission
+- stop-token termination
+- max-token termination
+- token streaming via async generators
+- metrics and cache updates during generation
 
-- slow prefill vs fast decode
-- asynchronous token streaming
-- stop-token and max-token termination
-- request metrics and cost accounting
-- KV-cache growth and eviction
-- batch scheduling windows
-- speculative decoding acceptance rates
-- replayable execution steps
+Relevant files:
 
-## Real Provider Mode
+- [packages/inference/src/prefill.ts](packages/inference/src/prefill.ts)
+- [packages/inference/src/decode.ts](packages/inference/src/decode.ts)
+- [packages/inference/src/tokenLoop.ts](packages/inference/src/tokenLoop.ts)
+- [packages/inference/src/speculative.ts](packages/inference/src/speculative.ts)
 
-`bun run agent` and `bun run api` still work deterministically by default.
+## Metrics, Cache, and Scheduling
 
-If you set provider environment variables, they switch to the LLM-backed harness automatically:
+The control-plane simulator also includes operational primitives that usually stay hidden in app-level agent demos.
+
+### Metrics
+
+[packages/metrics/src/request-metrics.ts](packages/metrics/src/request-metrics.ts)
+
+Tracks:
+
+- TTFT
+- TPOT
+- total tokens
+- total latency
+- throughput
+- estimated cost
+
+### KV Cache
+
+[packages/memory/src/kvCache.ts](packages/memory/src/kvCache.ts)
+
+Supports:
+
+- token-by-token memory growth
+- configurable memory caps
+- `lru` eviction
+- `sliding_window` eviction
+
+### Scheduler
+
+[packages/scheduler/src/index.ts](packages/scheduler/src/index.ts)
+
+Supports:
+
+- request queueing
+- batching windows
+- bounded batch size
+- batched dispatch simulation
+
+## Replay and Evaluation
+
+### Replay
+
+[packages/replay/src/index.ts](packages/replay/src/index.ts)
+
+Records:
+
+- tokens
+- decisions
+- events
+- tool calls
+
+This makes simulated runs inspectable and replayable step by step.
+
+### Evals
+
+[packages/evals/src/index.ts](packages/evals/src/index.ts)
+
+Supports:
+
+- scenario definitions
+- assertion-based validation
+- pass/fail reporting
+
+This is separate from the agent eval engine in `@harnesslab/core`, which focuses on harness behavior inside the agent runtime.
+
+## Provider-Backed Agent Mode
+
+The default runtime is deterministic so the project works without external credentials.
+
+If you provide provider environment variables, `bun run agent` and `bun run api` switch to the LLM-backed planner automatically:
 
 ```bash
 export HARNESSLAB_LLM_API_KEY=...
@@ -175,7 +316,7 @@ export HARNESSLAB_EMBEDDING_API_KEY=...
 export HARNESSLAB_EMBEDDING_BASE_URL=https://api.openai.com/v1
 ```
 
-The provider-backed harness is created through:
+Relevant constructors:
 
 - `createOpenAICompatibleHarness(...)`
 - `createOpenAICompatibleHarnessFromEnv(...)`
@@ -183,6 +324,10 @@ The provider-backed harness is created through:
 ## API
 
 The Hono server lives in [apps/api/src/index.ts](apps/api/src/index.ts).
+
+Default address:
+
+- `http://localhost:3001`
 
 Endpoints:
 
@@ -193,9 +338,45 @@ Endpoints:
 - `POST /inference/simulate`
 - `GET /traces`
 
-## Notes
+Example inference simulation request:
 
-- The runtime is deterministic by default so the project works without external model providers.
-- The default full harness now uses vector semantic memory backed by a local hashed embedding model, and can swap to remote embeddings when configured.
-- `bun run inference` exercises the standalone inference control-plane simulation from the CLI.
-- The optional UI is a thin TanStack Start shell over the API, not the primary teaching surface.
+```bash
+curl -X POST http://localhost:3001/inference/simulate \
+  -H 'content-type: application/json' \
+  -d '{
+    "prompt": "Explain prefill versus decode",
+    "generationPlan": ["Prefill", "loads", "context.", "Decode", "emits", "tokens.", "<eos>"],
+    "maxTokens": 12
+  }'
+```
+
+Example agent request:
+
+```bash
+curl -X POST http://localhost:3001/agent \
+  -H 'content-type: application/json' \
+  -d '{"goal":"Use the harness runtime to solve 2 + 2."}'
+```
+
+## CLI
+
+The CLI entrypoints live in `src/cli/`.
+
+- `bun run agent`: run the harnessed agent
+- `bun run eval`: run the core harness eval suite
+- `bun run module <slug>`: run a learning module
+- `bun run inference`: run the standalone inference control-plane simulator
+- `bun run api`: run the Hono API
+
+## Development Notes
+
+- The project is strict TypeScript and intentionally keeps interfaces explicit.
+- The inference engine is a simulator, not a wrapper around a hosted chat endpoint.
+- The default full harness uses vector semantic memory backed by a local hashed embedding model.
+- The UI is optional and not the primary teaching surface.
+
+## Project Goal
+
+HarnessLab is moving toward a single educational and engineering goal:
+
+> An open-source platform to learn and simulate how real AI systems work internally, including inference, memory, cost, and control layers.
