@@ -7,6 +7,7 @@ import type { ToolCall, ToolRegistry, ToolResult } from "../tooling/tool-registr
 import type { AgentHooks } from "./hooks";
 import { LoopDetector } from "./loop-detector";
 import type { LoopSignal } from "./loop-detector";
+import type { LlmUsage } from "../llm/types";
 
 export interface AgentInput {
   context?: JsonObject;
@@ -43,10 +44,16 @@ export interface AgentPlan {
   summary: string;
 }
 
+export interface AgentPlanningResult {
+  plan: AgentPlan;
+  raw?: JsonValue;
+  usage?: LlmUsage;
+}
+
 export interface AgentModel {
   estimateTokens?(observation: Observation): number;
   name: string;
-  plan(observation: Observation, state: RuntimeState): Promise<AgentPlan>;
+  plan(observation: Observation, state: RuntimeState): Promise<AgentPlan | AgentPlanningResult>;
 }
 
 export interface VerificationResult {
@@ -174,9 +181,6 @@ export class AgentRuntime {
 
         state.step += 1;
         const observation = await this.observe(state);
-        const plannedTokens = this.config.model.estimateTokens?.(observation) ?? 64;
-        state.tokenUsage += plannedTokens;
-
         await this.pushEvent(state, "observe", {
           memories: observation.memories,
           remainingSteps: observation.remainingSteps,
@@ -184,11 +188,15 @@ export class AgentRuntime {
           tokensRemaining: observation.tokensRemaining
         });
 
-        const plan = await this.config.model.plan(observation, state);
+        const plannedTokens = this.config.model.estimateTokens?.(observation) ?? 64;
+        const planningResult = normalizePlanningResult(await this.config.model.plan(observation, state));
+        const plan = planningResult.plan;
+        state.tokenUsage += planningResult.usage?.totalTokens ?? plannedTokens;
 
         await this.pushEvent(state, "plan", {
           action: plan.action,
-          summary: plan.summary
+          summary: plan.summary,
+          usage: serializeUsage(planningResult.usage)
         });
 
         const actResult = await this.act(plan.action, state);
@@ -294,6 +302,17 @@ export class AgentRuntime {
       runId: state.runId,
       step: state.step,
       workingMemory: state.workingMemory
+    });
+    state.workingMemory.lastPolicyDecision = {
+      allowed: decision.allowed,
+      approvalStatus: decision.approval?.status ?? null,
+      reason: decision.reason
+    };
+    await this.pushEvent(state, "policy_decision", {
+      allowed: decision.allowed,
+      approval: serializeApproval(decision.approval),
+      reason: decision.reason,
+      tool: call.tool
     });
 
     this.assertPolicy(decision);
@@ -453,3 +472,36 @@ export class DefaultVerifier implements Verifier {
     };
   }
 }
+
+const normalizePlanningResult = (value: AgentPlan | AgentPlanningResult): AgentPlanningResult =>
+  "plan" in value
+    ? value
+    : {
+        plan: value
+      };
+
+const serializeUsage = (usage: LlmUsage | undefined): JsonValue => {
+  if (usage === undefined) {
+    return null;
+  }
+
+  return {
+    inputTokens: usage.inputTokens ?? null,
+    outputTokens: usage.outputTokens ?? null,
+    totalTokens: usage.totalTokens ?? null
+  };
+};
+
+const serializeApproval = (approval: PolicyDecision["approval"]): JsonValue => {
+  if (approval === undefined) {
+    return null;
+  }
+
+  return {
+    approver: approval.approver ?? null,
+    decidedAt: approval.decidedAt ?? null,
+    notes: approval.notes ?? null,
+    requestedAt: approval.requestedAt,
+    status: approval.status
+  };
+};

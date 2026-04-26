@@ -18,7 +18,11 @@ export const printEvalReport = (report: EvalReport): void => {
   console.log(`averageScore ${report.averageScore.toFixed(2)}`);
 
   for (const testCase of report.cases) {
-    console.log(`${testCase.passed ? "PASS" : "FAIL"} ${testCase.name} score=${testCase.score.toFixed(2)} reason=${testCase.reason}`);
+    console.log(
+      `${testCase.passed ? "PASS" : "FAIL"} ${testCase.name} score=${testCase.score.toFixed(2)} steps=${testCase.metrics.steps} tokens=${testCase.metrics.tokenUsage} tools=${testCase.metrics.toolCalls.join(",") || "none"}`
+    );
+    for (const assertion of testCase.assertions.filter((item) => !item.passed)) {
+      console.log(`  - ${assertion.name}: ${assertion.detail}`);
+    }
   }
 };
-

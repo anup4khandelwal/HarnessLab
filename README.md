@@ -20,13 +20,14 @@ Instead of treating the model as the whole agent, HarnessLab teaches the layers 
 - A production-style agent loop: `observe -> plan -> act -> verify -> repeat`
 - Step limits, token budgets, and explicit termination conditions
 - JSON-schema tool registry with safe execution wrappers
-- Guardrails and approval gates
-- Hybrid memory with event memory, semantic memory, and an optional knowledge graph interface
+- Guardrails, structured approval gates, and approval records
+- Hybrid memory with event memory, keyword or vector semantic memory, and an optional knowledge graph interface
 - Full tracing for steps, tool calls, failures, and completion
 - Loop detection for repeated tool calls and no-progress runs
-- An evaluation engine for repeatable regression testing
+- Assertion-based evaluation for repeatable regression testing
 - Lifecycle hooks around tool execution and completion
 - Eight runnable learning modules that intentionally fail until the harness is improved
+- Optional real LLM and embedding adapters for OpenAI-compatible providers
 
 ## Folder Structure
 
@@ -116,6 +117,37 @@ The runtime lives in [packages/core/src/agent/runtime.ts](packages/core/src/agen
 - `Verifier`: decides whether the loop should continue or terminate
 - `LoopDetector`: escalates repeated or stagnant runs
 
+Extension points added in this pass:
+
+- `JsonPlanAgentModel`: provider-backed planner that asks an LLM for the next harness action
+- `OpenAICompatibleClient`: chat-completions adapter for real model calls
+- `OpenAICompatibleEmbeddingModel`: embedding adapter for vector memory
+- `VectorSemanticMemory`: cosine-similarity search over embedded notes and events
+- `InMemoryApprovalGate`: records approval requests and supports pending, approved, or denied outcomes
+- richer `EvaluationEngine` assertions for status, output, tool use, steps, token usage, and trace volume
+
+## Real Provider Mode
+
+`bun run agent` and `bun run api` still work deterministically by default.
+
+If you set provider environment variables, they switch to the LLM-backed harness automatically:
+
+```bash
+export HARNESSLAB_LLM_API_KEY=...
+export HARNESSLAB_LLM_MODEL=gpt-4.1-mini
+
+# optional
+export HARNESSLAB_LLM_BASE_URL=https://api.openai.com/v1
+export HARNESSLAB_EMBEDDING_MODEL=text-embedding-3-small
+export HARNESSLAB_EMBEDDING_API_KEY=...
+export HARNESSLAB_EMBEDDING_BASE_URL=https://api.openai.com/v1
+```
+
+The provider-backed harness is created through:
+
+- `createOpenAICompatibleHarness(...)`
+- `createOpenAICompatibleHarnessFromEnv(...)`
+
 ## API
 
 The Hono server lives in [apps/api/src/index.ts](apps/api/src/index.ts).
@@ -131,5 +163,5 @@ Endpoints:
 ## Notes
 
 - The runtime is deterministic by default so the project works without external model providers.
-- The semantic memory implementation is intentionally lightweight and replaceable; swap it with a real vector store when you want embeddings.
+- The default full harness now uses vector semantic memory backed by a local hashed embedding model, and can swap to remote embeddings when configured.
 - The optional UI is a thin TanStack Start shell over the API, not the primary teaching surface.
