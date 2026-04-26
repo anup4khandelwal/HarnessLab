@@ -11,7 +11,7 @@ It is not a chatbot framework. It treats agent behavior and inference behavior a
 The project is designed to help engineers understand both sides:
 
 - agent control planes: tools, policies, memory, tracing, approvals, evals
-- inference systems: prefill, decode, KV cache, scheduling, metrics, speculative decoding, replay
+- inference systems: prefill, decode, batching, KV cache, scheduling, metrics, speculative decoding, replay
 
 ## What HarnessLab Is For
 
@@ -23,7 +23,8 @@ Instead of hiding everything behind a single API call, it exposes the layers tha
 - how policies block or gate unsafe actions
 - how memory and replay support debugging
 - how inference latency and cost are shaped by prefill vs decode
-- how cache pressure, batching, and speculative decode affect throughput
+- how queueing, cache pressure, batching, and speculative decode affect throughput
+- how request lifecycle state supports debugging and control-plane reasoning
 
 ## Core Principles
 
@@ -56,6 +57,7 @@ Instead of hiding everything behind a single API call, it exposes the layers tha
   - request batching and scheduling
   - speculative decoding simulation
   - replayable token/decision traces
+  - request lifecycle orchestration through a dedicated inference runtime
 
 ## Repository Layout
 
@@ -77,6 +79,7 @@ Instead of hiding everything behind a single API call, it exposes the layers tha
 │   ├── core
 │   ├── evals
 │   ├── inference
+│   ├── inference-runtime
 │   ├── memory
 │   ├── metrics
 │   ├── replay
@@ -109,6 +112,16 @@ Inference simulation primitives.
 - `decode.ts`: token-by-token generation
 - `tokenLoop.ts`: async streaming inference loop
 - `speculative.ts`: draft-token verification simulation
+
+### `@harnesslab/inference-runtime`
+
+Serving-style orchestration over the inference primitives.
+
+- request submission and lifecycle tracking
+- queueing and batch assignment
+- async event streaming
+- request cancellation
+- replay lookup and batch history
 
 ### `@harnesslab/metrics`
 
@@ -233,6 +246,45 @@ Relevant files:
 - [packages/inference/src/tokenLoop.ts](packages/inference/src/tokenLoop.ts)
 - [packages/inference/src/speculative.ts](packages/inference/src/speculative.ts)
 
+## Inference Runtime
+
+`@harnesslab/inference-runtime` turns the lower-level inference simulator into a request-oriented control plane.
+
+Request lifecycle:
+
+`queued -> running -> completed | failed | cancelled`
+
+Core responsibilities:
+
+- submit inference requests
+- batch queued work through `@harnesslab/scheduler`
+- stream runtime and token events
+- expose request state snapshots
+- support queued and in-flight cancellation
+- expose replay traces and batch history for debugging
+
+Relevant files:
+
+- [packages/inference-runtime/src/runtime.ts](packages/inference-runtime/src/runtime.ts)
+- [packages/inference-runtime/src/types.ts](packages/inference-runtime/src/types.ts)
+
+Example:
+
+```ts
+const runtime = new InferenceRuntime()
+const request = runtime.submit({
+  prompt: "Explain why batching changes throughput"
+})
+
+for await (const event of runtime.stream(request.id)) {
+  if (event.type === "token") {
+    console.log(event.token)
+  }
+}
+
+console.log(runtime.getRequestState(request.id))
+```
+
 ## Metrics, Cache, and Scheduling
 
 The control-plane simulator also includes operational primitives that usually stay hidden in app-level agent demos.
@@ -270,6 +322,7 @@ Supports:
 - request queueing
 - batching windows
 - bounded batch size
+- queued request cancellation
 - batched dispatch simulation
 
 ## Replay and Evaluation
@@ -336,6 +389,12 @@ Endpoints:
 - `POST /run/:slug`
 - `POST /agent`
 - `POST /inference/simulate`
+- `POST /inference/requests`
+- `GET /inference/requests/:id`
+- `GET /inference/requests/:id/stream`
+- `POST /inference/requests/:id/cancel`
+- `GET /inference/requests/:id/replay`
+- `GET /inference/batches`
 - `GET /traces`
 
 Example inference simulation request:
@@ -348,6 +407,37 @@ curl -X POST http://localhost:3001/inference/simulate \
     "generationPlan": ["Prefill", "loads", "context.", "Decode", "emits", "tokens.", "<eos>"],
     "maxTokens": 12
   }'
+```
+
+Example runtime-backed inference request:
+
+```bash
+curl -X POST http://localhost:3001/inference/requests \
+  -H 'content-type: application/json' \
+  -d '{
+    "prompt": "Explain how a serving runtime schedules decode work",
+    "generationPlan": ["Serving", "runtimes", "batch", "requests.", "<eos>"],
+    "stopTokens": ["<eos>"],
+    "prefillLatencyMs": 1
+  }'
+```
+
+Fetch request state:
+
+```bash
+curl http://localhost:3001/inference/requests/<request-id>
+```
+
+Stream lifecycle and token events as NDJSON:
+
+```bash
+curl http://localhost:3001/inference/requests/<request-id>/stream
+```
+
+Replay the recorded trace:
+
+```bash
+curl http://localhost:3001/inference/requests/<request-id>/replay
 ```
 
 Example agent request:
@@ -365,13 +455,14 @@ The CLI entrypoints live in `src/cli/`.
 - `bun run agent`: run the harnessed agent
 - `bun run eval`: run the core harness eval suite
 - `bun run module <slug>`: run a learning module
-- `bun run inference`: run the standalone inference control-plane simulator
+- `bun run inference`: run the inference runtime demo with streamed lifecycle events
 - `bun run api`: run the Hono API
 
 ## Development Notes
 
 - The project is strict TypeScript and intentionally keeps interfaces explicit.
 - The inference engine is a simulator, not a wrapper around a hosted chat endpoint.
+- The inference runtime is also a simulator: it models serving behavior without pretending to be a production inference server.
 - The default full harness uses vector semantic memory backed by a local hashed embedding model.
 - The UI is optional and not the primary teaching surface.
 
