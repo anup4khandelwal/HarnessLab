@@ -11,6 +11,7 @@
     "agent": "bun run src/cli/agent.ts",
     "api": "bun run apps/api/src/index.ts",
     "eval": "bun run src/cli/eval.ts",
+    "inference": "bun run src/cli/inference.ts",
     "module": "bun run src/cli/module.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",

@@ -306,11 +306,17 @@ export class AgentRuntime {
     state.workingMemory.lastPolicyDecision = {
       allowed: decision.allowed,
       approvalStatus: decision.approval?.status ?? null,
+      disposition: decision.disposition,
       reason: decision.reason
     };
     await this.pushEvent(state, "policy_decision", {
+      action: {
+        kind: decision.action.kind,
+        name: decision.action.name
+      },
       allowed: decision.allowed,
       approval: serializeApproval(decision.approval),
+      disposition: decision.disposition,
       reason: decision.reason,
       tool: call.tool
     });

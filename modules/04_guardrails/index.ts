@@ -11,7 +11,7 @@ export const guardrailsModule: LearningModule = {
       ? new RuleBasedPolicy(
           [
             {
-              effect: "approve",
+              effect: "require_approval",
               reason: "unsafe.shell requires explicit approval",
               tool: "unsafe.shell"
             }
@@ -50,4 +50,3 @@ export const guardrailsModule: LearningModule = {
 };
 
 export default guardrailsModule;
-

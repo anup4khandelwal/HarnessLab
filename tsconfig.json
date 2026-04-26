@@ -19,13 +19,25 @@
     "baseUrl": ".",
     "paths": {
       "@harnesslab/core": ["packages/core/src/index.ts"],
-      "@harnesslab/core/*": ["packages/core/src/*"]
+      "@harnesslab/core/*": ["packages/core/src/*"],
+      "@harnesslab/evals": ["packages/evals/src/index.ts"],
+      "@harnesslab/evals/*": ["packages/evals/src/*"],
+      "@harnesslab/inference": ["packages/inference/src/index.ts"],
+      "@harnesslab/inference/*": ["packages/inference/src/*"],
+      "@harnesslab/memory": ["packages/memory/src/index.ts"],
+      "@harnesslab/memory/*": ["packages/memory/src/*"],
+      "@harnesslab/metrics": ["packages/metrics/src/index.ts"],
+      "@harnesslab/metrics/*": ["packages/metrics/src/*"],
+      "@harnesslab/replay": ["packages/replay/src/index.ts"],
+      "@harnesslab/replay/*": ["packages/replay/src/*"],
+      "@harnesslab/scheduler": ["packages/scheduler/src/index.ts"],
+      "@harnesslab/scheduler/*": ["packages/scheduler/src/*"]
     }
   },
   "include": [
     "apps/api/src/**/*.ts",
     "modules/**/*.ts",
-    "packages/core/src/**/*.ts",
+    "packages/*/src/**/*.ts",
     "src/**/*.ts",
     "tests/**/*.ts"
   ]

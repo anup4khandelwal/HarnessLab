@@ -1,12 +1,12 @@
 # HarnessLab
 
-HarnessLab is an educational runtime for AI Harness Engineering.
+HarnessLab is an open-source learning and simulation platform for AI Harness Engineering and LLM inference systems.
 
 The project is built around a simple idea:
 
 > Agent = Model + Harness
 
-Instead of treating the model as the whole agent, HarnessLab teaches the layers around it: the loop, tools, guardrails, memory, observability, loop detection, hooks, and evaluation.
+Instead of treating the model as the whole agent, HarnessLab teaches the layers around it: the loop, tools, guardrails, memory, observability, loop detection, hooks, evaluation, and now the inference control plane itself.
 
 ## Stack
 
@@ -28,6 +28,7 @@ Instead of treating the model as the whole agent, HarnessLab teaches the layers 
 - Lifecycle hooks around tool execution and completion
 - Eight runnable learning modules that intentionally fail until the harness is improved
 - Optional real LLM and embedding adapters for OpenAI-compatible providers
+- Simulated inference internals: prefill, decode, KV cache, batching, speculative decoding, replay, and request-level metrics
 
 ## Folder Structure
 
@@ -51,15 +52,13 @@ Instead of treating the model as the whole agent, HarnessLab teaches the layers 
 │   ├── 07_eval
 │   └── 08_full_agent
 ├── packages
-│   └── core
-│       └── src
-│           ├── agent
-│           ├── eval
-│           ├── memory
-│           ├── modules
-│           ├── observability
-│           ├── policy
-│           └── tooling
+│   ├── core
+│   ├── evals
+│   ├── inference
+│   ├── memory
+│   ├── metrics
+│   ├── replay
+│   └── scheduler
 ├── src
 │   └── cli
 └── tests
@@ -79,6 +78,7 @@ Run the core commands:
 bun run module 01_basic_agent
 bun run agent
 bun run eval
+bun run inference
 bun run api
 ```
 
@@ -117,7 +117,7 @@ The runtime lives in [packages/core/src/agent/runtime.ts](packages/core/src/agen
 - `Verifier`: decides whether the loop should continue or terminate
 - `LoopDetector`: escalates repeated or stagnant runs
 
-Extension points added in this pass:
+Recent extension points:
 
 - `JsonPlanAgentModel`: provider-backed planner that asks an LLM for the next harness action
 - `OpenAICompatibleClient`: chat-completions adapter for real model calls
@@ -125,6 +125,38 @@ Extension points added in this pass:
 - `VectorSemanticMemory`: cosine-similarity search over embedded notes and events
 - `InMemoryApprovalGate`: records approval requests and supports pending, approved, or denied outcomes
 - richer `EvaluationEngine` assertions for status, output, tool use, steps, token usage, and trace volume
+
+## Inference Control Plane
+
+HarnessLab now models the inference side of AI systems as first-class packages:
+
+- `@harnesslab/inference`: prefill, decode, token loop, and speculative decoding
+- `@harnesslab/metrics`: TTFT, TPOT, throughput, token counts, and request cost
+- `@harnesslab/memory`: KV-cache growth and eviction simulation
+- `@harnesslab/scheduler`: queued batching and batch dispatch
+- `@harnesslab/replay`: token, tool, and decision replay traces
+- `@harnesslab/evals`: scenario-style pass/fail test engine
+
+Key files:
+
+- `packages/inference/src/prefill.ts`
+- `packages/inference/src/decode.ts`
+- `packages/inference/src/tokenLoop.ts`
+- `packages/inference/src/speculative.ts`
+- `packages/metrics/src/request-metrics.ts`
+- `packages/memory/src/kvCache.ts`
+- `packages/scheduler/src/index.ts`
+
+The inference simulator is intentionally not a chatbot wrapper. It models:
+
+- slow prefill vs fast decode
+- asynchronous token streaming
+- stop-token and max-token termination
+- request metrics and cost accounting
+- KV-cache growth and eviction
+- batch scheduling windows
+- speculative decoding acceptance rates
+- replayable execution steps
 
 ## Real Provider Mode
 
@@ -158,10 +190,12 @@ Endpoints:
 - `GET /modules`
 - `POST /run/:slug`
 - `POST /agent`
+- `POST /inference/simulate`
 - `GET /traces`
 
 ## Notes
 
 - The runtime is deterministic by default so the project works without external model providers.
 - The default full harness now uses vector semantic memory backed by a local hashed embedding model, and can swap to remote embeddings when configured.
+- `bun run inference` exercises the standalone inference control-plane simulation from the CLI.
 - The optional UI is a thin TanStack Start shell over the API, not the primary teaching surface.

@@ -316,7 +316,7 @@ export const createConfiguredHarness = (options: HarnessFactoryOptions = {}): Fu
     new RuleBasedPolicy(
       [
         {
-          effect: "approve",
+          effect: "require_approval",
           reason: "unsafe.shell requires manual approval",
           tool: "unsafe.shell"
         }
