@@ -106,7 +106,7 @@ Most modules expose a single constant flag in their `index.ts` file. Flip the fl
 
 ## Core Runtime
 
-The runtime lives in [packages/core/src/agent/runtime.ts](/Users/anup.khandelwal/Desktop/projects/HarnessLab/packages/core/src/agent/runtime.ts) and coordinates:
+The runtime lives in [packages/core/src/agent/runtime.ts](packages/core/src/agent/runtime.ts) and coordinates:
 
 - `AgentModel`: produces the next plan from the current observation
 - `ToolRegistry`: validates and executes tool calls
@@ -118,7 +118,7 @@ The runtime lives in [packages/core/src/agent/runtime.ts](/Users/anup.khandelwal
 
 ## API
 
-The Hono server lives in [apps/api/src/index.ts](/Users/anup.khandelwal/Desktop/projects/HarnessLab/apps/api/src/index.ts).
+The Hono server lives in [apps/api/src/index.ts](apps/api/src/index.ts).
 
 Endpoints:
 
