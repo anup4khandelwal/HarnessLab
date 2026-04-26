@@ -5,18 +5,27 @@ const FIX_REGRESSION = false;
 
 const cases: EvalCase[] = [
   {
+    expectations: {
+      expectedStatus: "completed",
+      maxSteps: 3,
+      outputIncludes: ["4"],
+      requiredTools: ["math.add"]
+    },
     input: {
       goal: "What is 2 + 2?"
     },
-    name: "math-answer",
-    scorer: ({ output, status }) => (status === "completed" && output?.includes("4") ? 1 : 0)
+    name: "math-answer"
   },
   {
+    expectations: {
+      expectedStatus: "completed",
+      minTraceEvents: 8,
+      requiredTools: ["math.add"]
+    },
     input: {
       goal: "Use a tool and then answer."
     },
-    name: "tool-usage",
-    scorer: ({ output, status }) => (status === "completed" && (output?.length ?? 0) > 0 ? 1 : 0)
+    name: "tool-usage"
   }
 ];
 
@@ -37,6 +46,7 @@ export const evalModule: LearningModule = {
         : "Failure demo: the naive model fails the evaluation suite. Switch to SafeMathModel to fix it.",
       result: {
         averageScore: report.averageScore,
+        failed: report.failed,
         passed: report.passed,
         total: report.total
       },
@@ -49,4 +59,3 @@ export const evalModule: LearningModule = {
 
 export { cases as evalCases };
 export default evalModule;
-

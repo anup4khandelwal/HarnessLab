@@ -29,6 +29,12 @@ export interface ToolDefinition<TInput extends JsonObject = JsonObject, TOutput 
   timeoutMs?: number;
 }
 
+export interface ToolCatalogEntry {
+  description: string;
+  name: string;
+  schema: JsonSchema;
+}
+
 export class ToolExecutionError extends Error {}
 
 export class ToolRegistry {
@@ -40,6 +46,14 @@ export class ToolRegistry {
 
   public list(): ToolDefinition[] {
     return [...this.tools.values()];
+  }
+
+  public catalog(): ToolCatalogEntry[] {
+    return this.list().map((tool) => ({
+      description: tool.description,
+      name: tool.name,
+      schema: tool.schema
+    }));
   }
 
   public get(name: string): ToolDefinition | undefined {
@@ -96,4 +110,3 @@ const promiseWithTimeout = async <T>(
       setTimeout(() => reject(new ToolExecutionError(timeoutMessage)), timeoutMs);
     })
   ]);
-

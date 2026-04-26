@@ -1,3 +1,4 @@
+import { JsonPlanAgentModel } from "../agent/llm-model";
 import { AgentRuntime, DefaultVerifier } from "../agent/runtime";
 import type {
   AgentInput,
@@ -10,8 +11,13 @@ import { LoopDetector } from "../agent/loop-detector";
 import { EvaluationEngine } from "../eval/evaluator";
 import type { EvalCase, EvalReport } from "../eval/evaluator";
 import { HybridMemory } from "../memory/hybrid-memory";
+import { HashedEmbeddingModel, VectorSemanticMemory } from "../memory/embeddings";
+import type { EmbeddingModel } from "../memory/embeddings";
 import { InMemoryTracer } from "../observability/tracer";
-import { AllowAllPolicy, StaticApprovalGate, RuleBasedPolicy } from "../policy/policy";
+import type { LlmClient } from "../llm/types";
+import { OpenAICompatibleClient, OpenAICompatibleEmbeddingModel } from "../llm/openai-compatible";
+import { AllowAllPolicy, InMemoryApprovalGate, RuleBasedPolicy } from "../policy/policy";
+import type { ApprovalGate, ToolPolicy } from "../policy/policy";
 import { ToolRegistry } from "../tooling/tool-registry";
 import { asJsonObject } from "../common";
 import type { JsonObject, JsonValue } from "../common";
@@ -254,46 +260,96 @@ export class SchemaFailureModel implements AgentModel {
 }
 
 export interface FullAgentHarness {
+  approvalGate: InMemoryApprovalGate | undefined;
   eval(cases: EvalCase[]): Promise<EvalReport>;
+  memory: HybridMemory;
   run(input?: AgentInput): Promise<LearningModuleResult>;
   tracer: InMemoryTracer;
 }
 
-export const createFullAgentHarness = (): FullAgentHarness => {
-  const memory = new HybridMemory();
-  const tracer = new InMemoryTracer();
-  const policy = new RuleBasedPolicy(
-    [
-      {
-        effect: "deny",
-        reason: "unsafe.shell is blocked in the production harness",
-        tool: "unsafe.shell"
-      }
-    ],
-    new StaticApprovalGate(false)
-  );
+export interface HarnessFactoryOptions {
+  approvalGate?: ApprovalGate;
+  embeddingModel?: EmbeddingModel;
+  llmClient?: LlmClient;
+  memory?: HybridMemory;
+  policy?: ToolPolicy;
+  stepLimit?: number;
+  tokenBudget?: number;
+  tracer?: InMemoryTracer;
+}
+
+export interface OpenAICompatibleHarnessOptions {
+  apiKey: string;
+  baseUrl?: string;
+  embeddingApiKey?: string;
+  embeddingBaseUrl?: string;
+  embeddingModel?: string;
+  model: string;
+}
+
+export const createConfiguredHarness = (options: HarnessFactoryOptions = {}): FullAgentHarness => {
+  const approvalGate =
+    options.approvalGate instanceof InMemoryApprovalGate
+      ? options.approvalGate
+      : options.approvalGate === undefined
+        ? new InMemoryApprovalGate()
+        : undefined;
+  const memory =
+    options.memory ??
+    new HybridMemory({
+      semanticMemory:
+        options.embeddingModel === undefined
+          ? new VectorSemanticMemory(new HashedEmbeddingModel())
+          : new VectorSemanticMemory(options.embeddingModel)
+    });
+  const tracer = options.tracer ?? new InMemoryTracer();
+  const tools = createBaseTools(memory);
+  const model =
+    options.llmClient === undefined
+      ? new SafeMathModel()
+      : new JsonPlanAgentModel({
+          client: options.llmClient,
+          tools
+        });
+  const policy =
+    options.policy ??
+    new RuleBasedPolicy(
+      [
+        {
+          effect: "approve",
+          reason: "unsafe.shell requires manual approval",
+          tool: "unsafe.shell"
+        }
+      ],
+      options.approvalGate ?? approvalGate
+    );
 
   const runtimeFactory = () =>
-    createDemoRuntime(new SafeMathModel(), {
+    createDemoRuntime(model, {
       loopDetector: new LoopDetector({
         noProgressThreshold: 2,
         repeatedToolThreshold: 2
       }),
       memory,
       policy,
-      stepLimit: 5,
+      stepLimit: options.stepLimit ?? 5,
+      tokenBudget: options.tokenBudget ?? 2_048,
       tracer,
-      tools: createBaseTools(memory)
+      tools
     });
 
   return {
+    approvalGate,
     eval: async (cases) => new EvaluationEngine(runtimeFactory).run(cases),
+    memory,
     run: async (input = { goal: "What is 2 + 2?" }) => {
       const result = await runtimeFactory().run(input);
 
       return {
         detail: result.reason,
         result: {
+          approvalRequests: approvalGate?.list().length ?? 0,
+          memoryEvents: memory.eventMemory.list(result.state.runId).length,
           output: result.output ?? null,
           status: result.status,
           traceEvents: tracer.listRuns().flatMap((run) => run.events).length
@@ -303,4 +359,87 @@ export const createFullAgentHarness = (): FullAgentHarness => {
     },
     tracer
   };
+};
+
+export const createOpenAICompatibleHarness = (
+  options: OpenAICompatibleHarnessOptions
+): FullAgentHarness => {
+  const clientOptions: {
+    apiKey: string;
+    baseUrl?: string;
+    model: string;
+  } = {
+    apiKey: options.apiKey,
+    model: options.model
+  };
+
+  if (options.baseUrl !== undefined) {
+    clientOptions.baseUrl = options.baseUrl;
+  }
+
+  const embeddingModel =
+    options.embeddingModel === undefined
+      ? new HashedEmbeddingModel()
+      : new OpenAICompatibleEmbeddingModel(buildEmbeddingOptions(options));
+
+  return createConfiguredHarness({
+    embeddingModel,
+    llmClient: new OpenAICompatibleClient(clientOptions)
+  });
+};
+
+export const createOpenAICompatibleHarnessFromEnv = (
+  env: Record<string, string | undefined>
+): FullAgentHarness | undefined => {
+  if (env.HARNESSLAB_LLM_API_KEY === undefined || env.HARNESSLAB_LLM_MODEL === undefined) {
+    return undefined;
+  }
+
+  const options: OpenAICompatibleHarnessOptions = {
+    apiKey: env.HARNESSLAB_LLM_API_KEY,
+    model: env.HARNESSLAB_LLM_MODEL
+  };
+
+  if (env.HARNESSLAB_LLM_BASE_URL !== undefined) {
+    options.baseUrl = env.HARNESSLAB_LLM_BASE_URL;
+  }
+
+  if (env.HARNESSLAB_EMBEDDING_API_KEY !== undefined) {
+    options.embeddingApiKey = env.HARNESSLAB_EMBEDDING_API_KEY;
+  }
+
+  if (env.HARNESSLAB_EMBEDDING_BASE_URL !== undefined) {
+    options.embeddingBaseUrl = env.HARNESSLAB_EMBEDDING_BASE_URL;
+  }
+
+  if (env.HARNESSLAB_EMBEDDING_MODEL !== undefined) {
+    options.embeddingModel = env.HARNESSLAB_EMBEDDING_MODEL;
+  }
+
+  return createOpenAICompatibleHarness(options);
+};
+
+export const createFullAgentHarness = (): FullAgentHarness => createConfiguredHarness();
+
+const buildEmbeddingOptions = (options: OpenAICompatibleHarnessOptions): {
+  apiKey: string;
+  baseUrl?: string;
+  model: string;
+} => {
+  const embeddingOptions: {
+    apiKey: string;
+    baseUrl?: string;
+    model: string;
+  } = {
+    apiKey: options.embeddingApiKey ?? options.apiKey,
+    model: options.embeddingModel!
+  };
+
+  const resolvedBaseUrl = options.embeddingBaseUrl ?? options.baseUrl;
+
+  if (resolvedBaseUrl !== undefined) {
+    embeddingOptions.baseUrl = resolvedBaseUrl;
+  }
+
+  return embeddingOptions;
 };

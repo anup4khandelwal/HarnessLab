@@ -1,9 +1,9 @@
 import { Hono } from "hono";
-import { createFullAgentHarness } from "@harnesslab/core";
+import { createFullAgentHarness, createOpenAICompatibleHarnessFromEnv } from "@harnesslab/core";
 import { getModuleBySlug, moduleCatalog } from "../../../src/cli/module-registry";
 
 const app = new Hono();
-const harness = createFullAgentHarness();
+const harness = createOpenAICompatibleHarnessFromEnv(Bun.env) ?? createFullAgentHarness();
 
 app.get("/health", (context) =>
   context.json({
@@ -59,4 +59,3 @@ if (import.meta.main) {
 }
 
 export default app;
-
