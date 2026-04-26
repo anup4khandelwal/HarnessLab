@@ -24,6 +24,8 @@
       "@harnesslab/evals/*": ["packages/evals/src/*"],
       "@harnesslab/inference": ["packages/inference/src/index.ts"],
       "@harnesslab/inference/*": ["packages/inference/src/*"],
+      "@harnesslab/inference-runtime": ["packages/inference-runtime/src/index.ts"],
+      "@harnesslab/inference-runtime/*": ["packages/inference-runtime/src/*"],
       "@harnesslab/memory": ["packages/memory/src/index.ts"],
       "@harnesslab/memory/*": ["packages/memory/src/*"],
       "@harnesslab/metrics": ["packages/metrics/src/index.ts"],

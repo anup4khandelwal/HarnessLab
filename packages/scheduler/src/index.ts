@@ -120,6 +120,28 @@ export class RequestScheduler<TRequest, TResult> {
     return this.queue.length;
   }
 
+  public cancel(match: (request: TRequest) => boolean, error = new Error("Scheduled request was cancelled")): number {
+    const retained = this.queue.filter((entry) => !match(entry.request));
+    const removed = this.queue.filter((entry) => match(entry.request));
+
+    if (removed.length === 0) {
+      return 0;
+    }
+
+    this.queue.splice(0, this.queue.length, ...retained);
+
+    for (const entry of removed) {
+      entry.reject(error);
+    }
+
+    if (this.queue.length === 0 && this.timer !== undefined) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+
+    return removed.length;
+  }
+
   private schedule(): void {
     if (this.timer !== undefined) {
       return;
