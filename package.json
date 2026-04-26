@@ -1,0 +1,28 @@
+{
+  "name": "harnesslab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "agent": "bun run src/cli/agent.ts",
+    "api": "bun run apps/api/src/index.ts",
+    "eval": "bun run src/cli/eval.ts",
+    "module": "bun run src/cli/module.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "web": "bun --cwd apps/web run dev"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "bun-types": "^1.3.10",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "hono": "^4.7.2"
+  }
+}

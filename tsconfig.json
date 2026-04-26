@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "types": ["bun-types"],
+    "baseUrl": ".",
+    "paths": {
+      "@harnesslab/core": ["packages/core/src/index.ts"],
+      "@harnesslab/core/*": ["packages/core/src/*"]
+    }
+  },
+  "include": [
+    "apps/api/src/**/*.ts",
+    "modules/**/*.ts",
+    "packages/core/src/**/*.ts",
+    "src/**/*.ts",
+    "tests/**/*.ts"
+  ]
+}
