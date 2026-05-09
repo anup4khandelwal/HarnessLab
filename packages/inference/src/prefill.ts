@@ -14,6 +14,24 @@ export const prefill = async (request: InferenceRequest): Promise<{
       maxBytes: 1_000_000,
       windowSizeTokens: 256
     });
+
+  // Check the shared prefix cache before resolving latency.
+  // Tokens matched from a prior request skip re-computation, reducing
+  // both prefill latency and cost (cached tokens use a lower price tier).
+  const prefixLookup = request.prefixCache?.lookup(promptTokens) ?? {
+    cachedTokens: 0,
+    hitRate: 0,
+    matchedEntryId: undefined
+  };
+  const cachedTokenCount = prefixLookup.cachedTokens;
+  const uncachedTokenCount = promptTokens.length - cachedTokenCount;
+
+  // Latency scales with uncached tokens only.
+  const effectivePrefillLatencyMs =
+    request.prefillLatencyMs !== undefined
+      ? request.prefillLatencyMs * (uncachedTokenCount / Math.max(promptTokens.length, 1))
+      : Math.max(2, uncachedTokenCount * 8);
+
   const resolved: ResolvedInferenceRequest = {
     decodeLatencyMs: request.decodeLatencyMs ?? 4,
     generationPlan: [...(request.generationPlan ?? defaultGenerationPlan(request.prompt))],
@@ -22,7 +40,7 @@ export const prefill = async (request: InferenceRequest): Promise<{
     maxTokens: request.maxTokens,
     metrics,
     model: request.model ?? "simulated-transformer",
-    prefillLatencyMs: request.prefillLatencyMs ?? Math.max(20, promptTokens.length * 8),
+    prefillLatencyMs: effectivePrefillLatencyMs,
     pricing: request.pricing ?? {},
     prompt: request.prompt,
     replayRecorder: request.replayRecorder,
@@ -30,13 +48,14 @@ export const prefill = async (request: InferenceRequest): Promise<{
   };
 
   metrics.start({
+    cachedPromptTokens: cachedTokenCount,
     pricing: resolved.pricing,
     promptTokens: promptTokens.length,
     requestId: resolved.id
   });
 
   const startedAtMs = performance.now();
-  await sleep(resolved.prefillLatencyMs);
+  await sleep(effectivePrefillLatencyMs);
 
   promptTokens.forEach((token, index) => {
     resolved.kvCache.add({
@@ -46,7 +65,12 @@ export const prefill = async (request: InferenceRequest): Promise<{
     });
   });
 
+  // Register this prompt in the shared prefix cache so subsequent requests
+  // with a matching prefix can benefit from the hit.
+  request.prefixCache?.store(promptTokens);
+
   resolved.replayRecorder?.recordEvent({
+    cachedTokens: cachedTokenCount,
     model: resolved.model,
     phase: "prefill",
     promptTokens: promptTokens.length,
@@ -67,6 +91,7 @@ export const prefill = async (request: InferenceRequest): Promise<{
 
   return {
     event: {
+      cachedTokens: cachedTokenCount,
       cacheUsage: resolved.kvCache.getUsage(),
       latencyMs: state.prefillCompletedAtMs - startedAtMs,
       metrics: metrics.snapshot(),
@@ -101,4 +126,3 @@ const sleep = async (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, delayMs);
   });
-
