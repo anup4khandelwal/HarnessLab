@@ -1,5 +1,5 @@
 import type { CompletionEvent, InferenceEvent, InferenceFinishReason } from "@harnesslab/inference";
-import type { KvCacheOptions, KvCacheSimulator, KvCacheUsage } from "@harnesslab/memory";
+import type { KvCacheOptions, KvCacheSimulator, KvCacheUsage, PrefixCache, PrefixCacheStats } from "@harnesslab/memory";
 import type { PricingModel, RequestMetricsSnapshot, RequestMetricsTracker } from "@harnesslab/metrics";
 import type { ReplayRecorder, ReplayTrace } from "@harnesslab/replay";
 
@@ -12,8 +12,11 @@ export interface InferenceRuntimeOptions {
   defaultKvCacheOptions?: Partial<KvCacheOptions>;
   defaultMaxTokens?: number;
   maxBatchSize?: number;
+  prefixCache?: PrefixCache;
   requestIdPrefix?: string;
 }
+
+export type { PrefixCache, PrefixCacheStats };
 
 export interface InferenceRuntimeRequestInput {
   decodeLatencyMs?: number;

@@ -1,5 +1,5 @@
 import { runInference, type CompletionEvent, type InferenceEvent, type InferenceRequest } from "@harnesslab/inference";
-import { KvCacheSimulator, type KvCacheOptions } from "@harnesslab/memory";
+import { KvCacheSimulator, type KvCacheOptions, type PrefixCache, type PrefixCacheStats } from "@harnesslab/memory";
 import { RequestMetricsTracker } from "@harnesslab/metrics";
 import { ReplayRecorder } from "@harnesslab/replay";
 import { RequestScheduler } from "@harnesslab/scheduler";
@@ -67,6 +67,7 @@ export class InferenceRuntime {
   private readonly batchHistory: InferenceRuntimeBatchSnapshot[] = [];
   private readonly defaultKvCacheOptions: KvCacheOptions;
   private readonly defaultMaxTokens: number;
+  private readonly prefixCache: PrefixCache | undefined;
   private requestCounter = 0;
   private readonly requestIdPrefix: string;
   private readonly requests = new Map<string, RequestRecord>();
@@ -78,6 +79,7 @@ export class InferenceRuntime {
       ...options.defaultKvCacheOptions
     };
     this.defaultMaxTokens = options.defaultMaxTokens ?? 16;
+    this.prefixCache = options.prefixCache;
     this.requestIdPrefix = options.requestIdPrefix ?? "req";
     this.scheduler = new RequestScheduler<string, BatchResolution>({
       batchingWindowMs: options.batchingWindowMs ?? 10,
@@ -261,6 +263,10 @@ export class InferenceRuntime {
     return record === undefined ? undefined : this.toSnapshot(record);
   }
 
+  public getPrefixCacheStats(): PrefixCacheStats | undefined {
+    return this.prefixCache?.getStats();
+  }
+
   public pendingCount(): number {
     return this.scheduler.pendingCount();
   }
@@ -340,6 +346,7 @@ export class InferenceRuntime {
       ...(record.input.generationPlan !== undefined ? { generationPlan: record.input.generationPlan } : {}),
       ...(record.input.model !== undefined ? { model: record.input.model } : {}),
       ...(record.input.prefillLatencyMs !== undefined ? { prefillLatencyMs: record.input.prefillLatencyMs } : {}),
+      ...(this.prefixCache !== undefined ? { prefixCache: this.prefixCache } : {}),
       ...(record.input.pricing !== undefined ? { pricing: record.input.pricing } : {}),
       ...(record.input.stopTokens !== undefined ? { stopTokens: record.input.stopTokens } : {})
     };

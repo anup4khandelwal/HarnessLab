@@ -1,5 +1,5 @@
 import type { RequestMetricsTracker, RequestMetricsSnapshot, PricingModel } from "@harnesslab/metrics";
-import type { KvCacheSimulator, KvCacheUsage } from "@harnesslab/memory";
+import type { KvCacheSimulator, KvCacheUsage, PrefixCache } from "@harnesslab/memory";
 import type { ReplayRecorder } from "@harnesslab/replay";
 
 export type InferenceFinishReason = "exhausted_plan" | "max_tokens" | "stop_token";
@@ -13,6 +13,7 @@ export interface InferenceRequest {
   metrics?: RequestMetricsTracker;
   model?: string;
   prefillLatencyMs?: number;
+  prefixCache?: PrefixCache;
   pricing?: Partial<PricingModel>;
   prompt: string;
   replayRecorder?: ReplayRecorder;
@@ -47,6 +48,7 @@ export interface PrefillState {
 }
 
 export interface PrefillEvent {
+  cachedTokens: number;
   cacheUsage: KvCacheUsage;
   latencyMs: number;
   metrics: RequestMetricsSnapshot;
