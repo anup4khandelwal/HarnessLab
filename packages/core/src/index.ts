@@ -4,6 +4,7 @@ export * from "./agent/loop-detector";
 export * from "./agent/runtime";
 export * from "./common";
 export * from "./eval/evaluator";
+export * from "./eval/llm-judge";
 export * from "./llm/openai-compatible";
 export * from "./llm/static-client";
 export * from "./llm/types";

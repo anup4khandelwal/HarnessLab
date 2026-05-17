@@ -7,6 +7,7 @@ import observabilityModule from "../../modules/06_observability";
 import evalModule from "../../modules/07_eval";
 import fullAgentModule from "../../modules/08_full_agent";
 import prefixCacheModule from "../../modules/09_prefix_cache";
+import llmJudgeModule from "../../modules/10_llm_judge";
 import type { LearningModule } from "@harnesslab/core";
 
 export const moduleCatalog: LearningModule[] = [
@@ -18,7 +19,8 @@ export const moduleCatalog: LearningModule[] = [
   observabilityModule,
   evalModule,
   fullAgentModule,
-  prefixCacheModule
+  prefixCacheModule,
+  llmJudgeModule
 ];
 
 export const getModuleBySlug = (slug: string): LearningModule | undefined =>
